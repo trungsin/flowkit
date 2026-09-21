@@ -12,6 +12,12 @@ Workflow skills for AI agents and humans. Each skill is a step-by-step recipe.
 | 4 | `fk-gen-videos` | [fk-gen-videos.md](fk-gen-videos.md) | Generate videos from scene images |
 | 5 | `fk-concat` | [fk-concat.md](fk-concat.md) | Download + merge all scene videos |
 
+## Daily news
+
+| Skill | File | Description |
+|-------|------|-------------|
+| `fk-radar-daily` | [fk-radar-daily.md](fk-radar-daily.md) | Daily AI-news Shorts from a Radar digest (Grok via CLIProxyAPI) |
+
 ## Advanced Video
 
 | Skill | File | Description |

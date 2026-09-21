@@ -78,3 +78,4 @@ that change how you work:
 | `/fk-thumbnail-guide` | Thumbnail design reference |
 | `/fk-import-voice` | Import existing voice template |
 | `/fk-dashboard` | Live statusline setup |
+| `/fk-radar-daily` | Daily AI-news Shorts from Radar digest (Grok via CLIProxyAPI) |

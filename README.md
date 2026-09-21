@@ -230,6 +230,9 @@ You can also pass `flow_project_id` per project on `POST /api/projects`.
 | `FLOW_PROJECT_ID` | — | The Flow project every RPC is scoped to. Required. |
 | `FLOW_ALLOW_DEGRADED` | `0` | `1` lets scene chaining and r2v fall back to plain i2v instead of failing. |
 | `DEFAULT_PAYGATE_TIER` | `PAYGATE_TIER_TWO` | Carried for the DB and dashboard; no longer selects a model. |
+| `CLIPROXY_BASE_URL` | `http://127.0.0.1:8317` | CLIProxyAPI origin. Used only by `/fk-radar-daily` script-gen (Grok), not the FastAPI agent. |
+| `CLIPROXY_API_KEY` | empty | Bearer for CLIProxyAPI if the proxy requires it. |
+| `CLIPROXY_MODEL` | `grok-4` | Grok model id on the proxy. |
 
 ### Image API
 
@@ -484,6 +487,12 @@ Ready-to-use workflow recipes in `skills/` (also available as `/slash-commands` 
 | `/fk-concat` | Download + merge all scene videos |
 | `/fk-pipeline` | Smart full-pipeline orchestrator — runs the whole chain end to end |
 | `/fk-monitor` | Live monitor for a running pipeline |
+
+### Daily news
+
+| Skill | Description |
+|-------|-------------|
+| `/fk-radar-daily` | Daily AI-news Shorts from a Radar News digest (Grok via CLIProxyAPI). Semi-automatic — keep a signed-in Flow tab open. |
 
 ### Advanced Video
 
@@ -904,6 +913,12 @@ From `youtube/upload.py` (HTTP errors from YouTube Data API v3):
 ## Changelog
 
 Dates are merge dates. Older releases are tagged; `git log` is the full record.
+
+### 2026-09-21 — Radar daily Shorts
+
+| Date | Change |
+|---|---|
+| 2026-09-21 | **`/fk-radar-daily <date>`** — turns that day's Radar digest (`radarnews-pipeline.dxmt.workers.dev/digest/{date}?format=json`) into one VERTICAL ~60s Short per usable topic (`evidence≥2` and non-empty `insight`). Script-gen is **Grok through CLIProxyAPI** (ClipProxyAL), not the driving CLI. Helpers: `scripts/radar_digest.py`, `scripts/radar_scriptgen.py`, `scripts/radar_build_short.py`. Env: `CLIPROXY_BASE_URL` / `CLIPROXY_API_KEY` / `CLIPROXY_MODEL`. Not a headless cron — keep one signed-in `flow.google.com` tab open. Recipe: `skills/fk-radar-daily.md` |
 
 ### v1.3.1 — 2026-09-20 — the dead Gemini target
 
