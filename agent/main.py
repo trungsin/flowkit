@@ -10,6 +10,8 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from agent.config import API_HOST, API_PORT, WS_HOST, WS_PORT
+from agent.dashboard_static import HeadAsGetMiddleware, mount_dashboard, origin_allowed
+from agent.extension_bridge import extension_ws_endpoint
 from agent.db.schema import init_db, close_db
 from agent.api.characters import router as characters_router
 from agent.api.projects import router as projects_router
@@ -121,6 +123,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(HeadAsGetMiddleware)
 
 app.include_router(characters_router, prefix="/api")
 app.include_router(projects_router, prefix="/api")
@@ -179,14 +182,17 @@ async def health():
 
 # ─── Dashboard WebSocket ──────────────────────────────────────
 
+@app.websocket("/ws/extension")
+async def extension_ws(websocket: WebSocket):
+    """Chrome extension bridge on the public HTTPS host (Cloudflare Tunnel)."""
+    await extension_ws_endpoint(websocket, _CALLBACK_SECRET)
+
+
 @app.websocket("/ws/dashboard")
 async def dashboard_ws(websocket: WebSocket):
     """WebSocket endpoint for dashboard clients (Chrome extension side panel)."""
-    # Reject cross-origin connections (only allow localhost)
-    origin = (websocket.headers.get("origin") or "").lower()
-    if origin and not any(origin.startswith(p) for p in (
-        "http://127.0.0.1", "http://localhost", "chrome-extension://",
-    )):
+    origin = websocket.headers.get("origin") or ""
+    if not origin_allowed(origin):
         await websocket.close(code=4003, reason="Origin not allowed")
         return
     await websocket.accept()
@@ -227,6 +233,9 @@ async def dashboard_ws(websocket: WebSocket):
         logger.debug("Dashboard WS client disconnected: %s", e)
     finally:
         event_bus.unsubscribe(q)
+
+
+mount_dashboard(app)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, NavLink, Routes, Route, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, NavLink, Navigate, Routes, Route, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { LayoutDashboard, FolderOpen, Film, ScrollText, BookOpen, SlidersHorizontal } from 'lucide-react'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { WebSocketProvider } from './api/WebSocketContext'
@@ -15,14 +15,15 @@ import ProjectsPage from './pages/ProjectsPage'
 import LogsPage from './pages/LogsPage'
 import GalleryPage from './pages/GalleryPage'
 import GuidePage from './pages/GuidePage'
+import LandingPage from './pages/LandingPage'
 import SettingsPage from './pages/SettingsPage'
 
 const NAV: { to: string; icon: typeof LayoutDashboard; labelKey: TranslationKey; exact: boolean }[] = [
-  { to: '/', icon: LayoutDashboard, labelKey: 'nav.dashboard', exact: true },
+  { to: '/dashboard', icon: LayoutDashboard, labelKey: 'nav.dashboard', exact: true },
   { to: '/projects', icon: FolderOpen, labelKey: 'nav.projects', exact: false },
   { to: '/gallery', icon: Film, labelKey: 'nav.gallery', exact: false },
   { to: '/logs', icon: ScrollText, labelKey: 'nav.logs', exact: false },
-  { to: '/guide', icon: BookOpen, labelKey: 'nav.guide', exact: false },
+  { to: '/huongdan', icon: BookOpen, labelKey: 'nav.guide', exact: false },
   { to: '/settings', icon: SlidersHorizontal, labelKey: 'nav.settings', exact: false },
 ]
 
@@ -55,7 +56,7 @@ function useBreadcrumbs() {
   }, [id])
 
   const crumbs: string[] = []
-  if (loc.pathname === '/') crumbs.push(t('app.breadcrumb.dashboard'))
+  if (loc.pathname.startsWith('/dashboard') || loc.pathname === '/') crumbs.push(t('app.breadcrumb.dashboard'))
   else if (loc.pathname.startsWith('/projects')) {
     crumbs.push(t('app.breadcrumb.projects'))
     if (id) {
@@ -66,7 +67,7 @@ function useBreadcrumbs() {
     }
   } else if (loc.pathname.startsWith('/gallery')) crumbs.push(t('app.breadcrumb.gallery'))
   else if (loc.pathname.startsWith('/logs')) crumbs.push(t('app.breadcrumb.logs'))
-  else if (loc.pathname.startsWith('/guide')) crumbs.push(t('app.breadcrumb.guide'))
+  else if (loc.pathname.startsWith('/huongdan') || loc.pathname.startsWith('/guide')) crumbs.push(t('app.breadcrumb.guide'))
   else if (loc.pathname.startsWith('/settings')) crumbs.push(t('app.breadcrumb.settings'))
 
   return crumbs
@@ -99,13 +100,13 @@ function Sidebar() {
 
   return (
     <aside className="w-52 flex-shrink-0 flex flex-col border-r" style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}>
-      <div className="px-4 py-4 flex items-center gap-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
+      <NavLink to="/" className="px-4 py-4 flex items-center gap-2.5 border-b" style={{ borderColor: 'var(--border)' }}>
         <span className="w-[22px] h-[22px] rounded flex items-center justify-center text-xs font-bold" style={{ background: 'var(--accent)', color: 'var(--bg)' }}>F</span>
         <div className="flex flex-col">
           <span className="text-xs font-bold tracking-widest">{t('app.brandName')}</span>
           <span className="text-[9px] tracking-wide" style={{ color: 'var(--muted)' }}>{t('app.brandTag')}</span>
         </div>
-      </div>
+      </NavLink>
 
       <nav className="flex flex-col gap-0.5 px-2.5 py-3">
         {NAV.map(({ to, icon: Icon, labelKey, exact }) => (
@@ -184,12 +185,13 @@ function Layout() {
         <Header />
         <main className="flex-1 overflow-auto p-5">
           <Routes>
-            <Route path="/" element={<DashboardPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/:id" element={<ProjectsPage />} />
             <Route path="/gallery" element={<GalleryPage />} />
             <Route path="/logs" element={<LogsPage />} />
-            <Route path="/guide" element={<GuidePage />} />
+            <Route path="/huongdan" element={<GuidePage />} />
+            <Route path="/guide" element={<Navigate to="/huongdan" replace />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
@@ -202,11 +204,19 @@ export default function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
-        <WebSocketProvider>
-          <TooltipProvider>
-            <Layout />
-          </TooltipProvider>
-        </WebSocketProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route
+            path="/*"
+            element={
+              <WebSocketProvider>
+                <TooltipProvider>
+                  <Layout />
+                </TooltipProvider>
+              </WebSocketProvider>
+            }
+          />
+        </Routes>
       </LanguageProvider>
     </BrowserRouter>
   )

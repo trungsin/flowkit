@@ -1,0 +1,13 @@
+[Unit]
+Description=Cloudflare Tunnel for flowkit.datxanhmientrung.ai
+After=network-online.target flowkit.service
+Wants=network-online.target
+Wants=flowkit.service
+
+[Service]
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate tunnel --config /home/lesin/.cloudflared/flowkit.yml run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

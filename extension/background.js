@@ -14,7 +14,24 @@
  * serving an older one; remove them once no agent in the wild sends them.
  */
 
-const AGENT_WS_URL = 'ws://127.0.0.1:9222';
+const DEFAULT_AGENT_BASE = 'https://flowkit.datxanhmientrung.ai';
+
+function endpointsFromBase(base) {
+  let u;
+  try {
+    u = new URL(String(base || DEFAULT_AGENT_BASE).replace(/\/$/, ''));
+  } catch {
+    u = new URL(DEFAULT_AGENT_BASE);
+  }
+  const local = u.hostname === '127.0.0.1' || u.hostname === 'localhost';
+  const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  return {
+    ws: local ? `ws://${u.hostname}:9222` : `${wsProto}//${u.host}/ws/extension`,
+    callback: `${u.protocol}//${u.host}/api/ext/callback`,
+  };
+}
+
+let endpoints = endpointsFromBase(DEFAULT_AGENT_BASE);
 // NOTE: This is a browser-restricted public API key — safe to ship in extension bundles.
 const API_KEY = 'AIzaSyBtrm0o5ab1c-Ec8ZuLcGt3oJAA5VWt3pY';
 
@@ -112,10 +129,11 @@ function ensureInitialized() {
 }
 
 async function initialize() {
-  const data = await chrome.storage.local.get(['flowKey', 'metrics', 'callbackSecret']);
+  const data = await chrome.storage.local.get(['flowKey', 'metrics', 'callbackSecret', 'agentBase']);
   if (data.flowKey) flowKey = data.flowKey;
   if (data.metrics) Object.assign(metrics, data.metrics);
   if (data.callbackSecret) callbackSecret = data.callbackSecret;
+  endpoints = endpointsFromBase(data.agentBase || DEFAULT_AGENT_BASE);
   connectToAgent();
   chrome.alarms.create('keepAlive', { periodInMinutes: 0.4 });
 }
@@ -207,7 +225,7 @@ function connectToAgent() {
   if (ws?.readyState === WebSocket.OPEN) return;
 
   try {
-    ws = new WebSocket(AGENT_WS_URL);
+    ws = new WebSocket(endpoints.ws);
   } catch (e) {
     console.error('[FlowAgent] WS connect error:', e);
     scheduleReconnect();
@@ -298,7 +316,7 @@ function keepAlive() {
 function sendToAgent(msg) {
   // API responses (with msg.id) go via HTTP — immune to WS disconnect
   if (msg.id) {
-    fetch('http://127.0.0.1:8100/api/ext/callback', {
+    fetch(endpoints.callback, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(msg),
@@ -813,6 +831,21 @@ chrome.runtime.onMessage.addListener((msg, _, reply) => {
     manualDisconnect = false;
     connectToAgent();
     reply({ ok: true });
+    return true;
+  }
+
+  if (msg.type === 'SET_AGENT_BASE') {
+    endpoints = endpointsFromBase(msg.agentBase || DEFAULT_AGENT_BASE);
+    chrome.storage.local.set({ agentBase: msg.agentBase || DEFAULT_AGENT_BASE });
+    manualDisconnect = false;
+    if (ws) ws.close();
+    connectToAgent();
+    reply({ ok: true, ws: endpoints.ws });
+    return true;
+  }
+
+  if (msg.type === 'GET_AGENT_BASE') {
+    reply({ agentBase: endpoints.callback.replace(/\/api\/ext\/callback$/, ''), ws: endpoints.ws });
     return true;
   }
 

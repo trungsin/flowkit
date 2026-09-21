@@ -11,6 +11,12 @@ function detectDefaultLang(): Lang {
   } catch {
     // localStorage unavailable — fall through to browser language detection
   }
+  try {
+    const host = window.location.hostname
+    if (host === 'flowkit.datxanhmientrung.ai' || host.endsWith('.datxanhmientrung.ai')) return 'vi'
+  } catch {
+    // non-browser
+  }
   const nav = (navigator.language || 'en').slice(0, 2).toLowerCase()
   return (LANGS as readonly string[]).includes(nav) ? (nav as Lang) : 'en'
 }

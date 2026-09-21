@@ -79,6 +79,7 @@ export default function GuidePage() {
           ) : !health ? (
             <div className="text-xs" style={{ color: 'var(--muted)' }}>{t('guide.status.checking')}</div>
           ) : (
+            <div className="flex flex-col gap-3">
             <div className="flex flex-wrap gap-6">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />
@@ -97,6 +98,12 @@ export default function GuidePage() {
                   {t('guide.status.ws', { active: health.ws.active_connections, authenticated: health.ws.authenticated_connections })}
                 </span>
               </div>
+            </div>
+            {!health.extension_connected && (
+              <p className="text-[11px] leading-relaxed m-0" style={{ color: 'var(--yellow)' }}>
+                {t('guide.remoteHint', { origin: window.location.origin })}
+              </p>
+            )}
             </div>
           )}
         </CardContent>

@@ -1,0 +1,14 @@
+[Unit]
+Description=Flow Kit FastAPI agent + dashboard
+After=network-online.target
+
+[Service]
+WorkingDirectory=/home/lesin/apps/flowkit
+EnvironmentFile=-/home/lesin/apps/flowkit/.env
+Environment=PATH=/home/lesin/bin:/home/lesin/apps/flowkit/venv/bin:/usr/local/bin:/usr/bin
+ExecStart=/home/lesin/apps/flowkit/venv/bin/python -m agent.main
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

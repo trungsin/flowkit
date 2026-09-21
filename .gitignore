@@ -5,6 +5,10 @@ __pycache__/
 *.db-wal
 *.db-journal
 .env
+.venv/
+venv/
+dashboard/dist/
+dashboard/node_modules/
 output/
 youtube
 agent/active_project.json

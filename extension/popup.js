@@ -136,3 +136,23 @@ chrome.runtime.sendMessage({ type: 'REQUEST_LOG' }, (data) => {
   if (chrome.runtime.lastError) return;
   if (data && data.log) renderLog(data.log);
 });
+
+const DEFAULT_AGENT_BASE = 'https://flowkit.datxanhmientrung.ai';
+const agentInput = document.getElementById('agent-base');
+const agentHint = document.getElementById('agent-hint');
+
+chrome.storage.local.get(['agentBase'], (d) => {
+  agentInput.value = d.agentBase || DEFAULT_AGENT_BASE;
+});
+
+document.getElementById('btn-save-agent').addEventListener('click', () => {
+  const agentBase = (agentInput.value || DEFAULT_AGENT_BASE).trim().replace(/\/$/, '');
+  agentInput.value = agentBase;
+  chrome.runtime.sendMessage({ type: 'SET_AGENT_BASE', agentBase }, (res) => {
+    if (chrome.runtime.lastError) {
+      agentHint.textContent = chrome.runtime.lastError.message;
+      return;
+    }
+    agentHint.textContent = res && res.ws ? `WS ${res.ws}` : 'saved';
+  });
+});

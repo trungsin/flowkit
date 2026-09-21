@@ -225,6 +225,50 @@
       text-align: center;
       letter-spacing: 0.04em;
     }
+
+    .agent-box {
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .agent-box label {
+      display: block;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .agent-row { display: flex; gap: 6px; }
+
+    #agent-base {
+      flex: 1;
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 6px 8px;
+      border-radius: 4px;
+    }
+
+    #btn-save-agent {
+      font-family: var(--font);
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: #fff;
+      cursor: pointer;
+      padding: 6px 10px;
+    }
+
+    #agent-hint { margin-top: 4px; font-size: 9px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -240,6 +284,15 @@
 
   <div id="log-list">
     <div class="log-empty">No requests yet</div>
+  </div>
+
+  <div class="agent-box">
+    <label for="agent-base">Agent URL</label>
+    <div class="agent-row">
+      <input id="agent-base" type="url" spellcheck="false" placeholder="https://flowkit.datxanhmientrung.ai" />
+      <button id="btn-save-agent" type="button">Save</button>
+    </div>
+    <div id="agent-hint"></div>
   </div>
 
   <div class="footer">Click a row to expand details</div>

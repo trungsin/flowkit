@@ -15,6 +15,30 @@ API_PORT = int(os.environ.get("API_PORT", "8100"))
 WS_HOST = os.environ.get("WS_HOST", "127.0.0.1")
 WS_PORT = int(os.environ.get("WS_PORT", "9222"))
 
+# Dashboard WS Origin allowlist. Localhost + chrome-extension always pass.
+# Production domains go in DASHBOARD_ORIGINS (comma-separated prefixes).
+_LOCAL_ORIGIN_PREFIXES = (
+    "http://127.0.0.1",
+    "http://localhost",
+    "https://127.0.0.1",
+    "https://localhost",
+    "chrome-extension://",
+)
+
+
+def parse_dashboard_origin_prefixes(raw: str | None = None) -> tuple[str, ...]:
+    extra_raw = os.environ.get("DASHBOARD_ORIGINS", "") if raw is None else raw
+    extra = tuple(
+        p.strip().rstrip("/").lower()
+        for p in extra_raw.split(",")
+        if p.strip()
+    )
+    return _LOCAL_ORIGIN_PREFIXES + extra
+
+
+DASHBOARD_ORIGIN_PREFIXES = parse_dashboard_origin_prefixes()
+DASHBOARD_DIST = Path(os.environ.get("DASHBOARD_DIST", BASE_DIR / "dashboard" / "dist"))
+
 
 # ─── Flow batchexecute ──────────────────────────────────────
 # Every call is signed in the page with the session cookie plus a per-page `at`

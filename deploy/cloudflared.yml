@@ -1,0 +1,9 @@
+# Filled in by scripts/deploy-vps.sh after `cloudflared tunnel create`.
+# credentials-file stays on the VPS under ~/.cloudflared/.
+tunnel: REPLACE_TUNNEL_ID
+credentials-file: /home/lesin/.cloudflared/REPLACE_TUNNEL_ID.json
+
+ingress:
+  - hostname: flowkit.datxanhmientrung.ai
+    service: http://127.0.0.1:8100
+  - service: http_status:404
