@@ -89,6 +89,18 @@ class UploadImageRequest(BaseModel):
     file_name: str = "image.png"
 
 
+UPLOAD_BYTES_MAX = 10 * 1024 * 1024  # decoded image size cap for /upload-image-bytes
+UPLOAD_BYTES_MIME = ("image/png", "image/jpeg", "image/webp")
+
+
+class UploadImageBytesRequest(BaseModel):
+    """Inline image for callers that do not share this host's filesystem (remote agents)."""
+    image_b64: str
+    mime_type: str = "image/png"
+    project_id: str = ""
+    file_name: str = "image.png"
+
+
 class CheckStatusRequest(BaseModel):
     operations: list[dict] = []
     # Omni/workflow-mode callers should pass workflow descriptors instead of
@@ -445,6 +457,16 @@ async def export_image(body: UpscaleImageRequest):
     )
 
 
+async def _upload_b64(b64: str, mime: str, project_id: str, file_name: str) -> dict:
+    """Shared tail of both upload endpoints: extension upload -> {media_id, raw}."""
+    client = get_flow_client()
+    result = await client.upload_image(b64, mime_type=mime, project_id=project_id, file_name=file_name)
+    if result.get("error") or (isinstance(result.get("status"), int) and result["status"] >= 400):
+        raise HTTPException(result.get("status", 502), result.get("error", result.get("data")))
+    media_id = result.get("_mediaId")
+    return {"media_id": media_id, "raw": result.get("data", result)}
+
+
 @router.post("/upload-image")
 async def upload_image(body: UploadImageRequest):
     """Upload a local image file to Google Flow and get a media_id."""
@@ -459,8 +481,29 @@ async def upload_image(body: UploadImageRequest):
         raise HTTPException(404, f"File not found: {body.file_path}")
     b64 = base64.b64encode(image_bytes).decode()
     mime = mimetypes.guess_type(body.file_path)[0] or "image/png"
-    result = await client.upload_image(b64, mime_type=mime, project_id=body.project_id, file_name=body.file_name)
-    if result.get("error") or (isinstance(result.get("status"), int) and result["status"] >= 400):
-        raise HTTPException(result.get("status", 502), result.get("error", result.get("data")))
-    media_id = result.get("_mediaId")
-    return {"media_id": media_id, "raw": result.get("data", result)}
+    return await _upload_b64(b64, mime, body.project_id, body.file_name)
+
+
+@router.post("/upload-image-bytes")
+async def upload_image_bytes(body: UploadImageBytesRequest):
+    """Upload an inline base64 image to Google Flow and get a media_id.
+
+    Same result as /upload-image, for callers on another host (the agent cannot read their files).
+    """
+    import base64, binascii
+    client = get_flow_client()
+    if not client.connected:
+        raise HTTPException(503, "Extension not connected")
+    if body.mime_type not in UPLOAD_BYTES_MIME:
+        raise HTTPException(400, f"mime_type must be one of {', '.join(UPLOAD_BYTES_MIME)}")
+    if len(body.image_b64) > (UPLOAD_BYTES_MAX * 4) // 3 + 8:
+        raise HTTPException(413, f"image exceeds {UPLOAD_BYTES_MAX} bytes")
+    try:
+        raw = base64.b64decode(body.image_b64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(400, "image_b64 is not valid base64")
+    if not raw:
+        raise HTTPException(400, "image_b64 is empty")
+    if len(raw) > UPLOAD_BYTES_MAX:
+        raise HTTPException(413, f"image exceeds {UPLOAD_BYTES_MAX} bytes")
+    return await _upload_b64(base64.b64encode(raw).decode(), body.mime_type, body.project_id, body.file_name)
