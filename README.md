@@ -951,6 +951,9 @@ FlowKit stops instead of retrying:
 - `GET /api/flow/status` → `generation_throttle` shows whether a hold is active,
   its reason and the seconds left. `POST /api/flow/clear-hijack` lifts it by
   hand — only do that once manual generation in the Flow UI works again.
+- Tools that call the API (Stock Shorts, Radar, remote callers) must check
+  `/api/flow/status` first, send `X-FlowKit-Caller`, and stop the whole run on
+  these errors instead of retrying: [`docs/FLOW_CLIENT_SAFETY.md`](docs/FLOW_CLIENT_SAFETY.md).
 
 ### Default Model & Tier Compatibility
 
