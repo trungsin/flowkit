@@ -94,6 +94,27 @@ def build_short(spec: dict, project_id: str, run_day: str, base: str) -> dict:
             "orientation": "VERTICAL",
             "description": spec.get("stable_key") or "",
         }, base=base)
+    existing, _ = req("GET", "/api/scenes?video_id=%s" % video["id"], base=base)
+    if existing:
+        # Same topic+day already built (retry / second click): reuse, never append.
+        req("PUT", "/api/active-project", {"project_id": project_id}, base=base)
+        ordered = sorted(existing, key=lambda s: s.get("display_order") or 0)
+        return {
+            "project_id": project_id,
+            "video_id": video["id"],
+            "orientation": video.get("orientation"),
+            "mc_id": mc["id"],
+            "title": title,
+            "scenes": [
+                {
+                    "id": s.get("id"),
+                    "display_order": s.get("display_order"),
+                    "narrator_text": s.get("narrator_text"),
+                    "chain_type": s.get("chain_type"),
+                }
+                for s in ordered
+            ],
+        }
     scenes_out = []
     for index, scene in enumerate(spec.get("scenes") or []):
         names = scene.get("character_names") or []

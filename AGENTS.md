@@ -109,6 +109,7 @@ This project has reusable skills in `skills/`. When the user says `/fk-<name>`, 
 | `/fk-monitor` | fk-monitor — Full Pipeline Monitor |
 | `/fk-pipeline` | fk-pipeline — Smart Full-Pipeline Orchestrator |
 | `/fk-provider` | fk-provider — Media providers: choose the generation backend |
+| `/fk-radar-daily` | fk-radar-daily — Daily AI-news Shorts from a Radar News digest (Grok via CLIProxyAPI) |
 | `/fk-refresh-urls` | Re-sign expired media URLs for all scenes in a video (images, videos, upscale videos) and character reference images. |
 | `/fk-research` | fk-research — Fact-Check & Research Before Scripting |
 | `/fk-review-board` | Start the Scene Review Board web app for visual feedback on scene chains. |

@@ -102,6 +102,8 @@ def test_build_short_posts_vertical_root_and_patches_narrator(monkeypatch):
             return ({"id": "proj", "material": "realistic"}, 200)
         if path.startswith("/api/videos?project_id=") and method == "GET":
             return ([], 200)
+        if path.startswith("/api/scenes?video_id=") and method == "GET":
+            return ([], 200)
         if path == "/api/videos":
             assert body["orientation"] == "VERTICAL"
             return ({"id": "vid1", "orientation": "VERTICAL"}, 200)

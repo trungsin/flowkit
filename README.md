@@ -278,7 +278,7 @@ extension are not needed for muse2api requests. Full setup:
 | `DEFAULT_PAYGATE_TIER` | `PAYGATE_TIER_TWO` | Carried for the DB and dashboard; no longer selects a model. |
 | `CLIPROXY_BASE_URL` | `http://127.0.0.1:8317` | CLIProxyAPI origin. Used only by `/fk-radar-daily` script-gen (Grok), not the FastAPI agent. |
 | `CLIPROXY_API_KEY` | empty | Bearer for CLIProxyAPI if the proxy requires it. |
-| `CLIPROXY_MODEL` | `grok-4` | Grok model id on the proxy. |
+| `CLIPROXY_MODEL` | `gpt-5.6-luna` | Script-gen model on the proxy (ChatGPT/Codex login). `grok-4` still works if xAI has balance. |
 | `MEDIA_PROVIDER` | `flow` | `flow` (Google Flow via extension) or `assistant` (route all generation to the AI assistant). |
 | `ASSISTANT_PROVIDER_TIMEOUT_S` | `1800` | How long a request waits for a worker to complete its provider job before failing. |
 | `ASSISTANT_PROVIDER_POLL_S` | `15` | How often to poll the provider-job row while waiting for completion. |
@@ -1185,6 +1185,12 @@ From `youtube/upload.py` (HTTP errors from YouTube Data API v3):
 ## Changelog
 
 Dates are merge dates. Older releases are tagged; `git log` is the full record.
+
+### 2026-10-31 — upstream sync: Flow account safety
+
+| Date | Change |
+|---|---|
+| 2026-10-31 | Merged `crisng95/flowkit` main: `PUBLIC_ERROR_UNUSUAL_ACTIVITY` is no longer retried and holds all Flow generation for `FLOW_UNUSUAL_ACTIVITY_COOLDOWN_S` (3600s, persisted in `flow_generation_hold.json`); `[HIJACK]` retries capped at 3; Nano Banana 2.1 (`BELUGA`) replaces `NARWHAL`; `/api/flow/upload-image` takes `image_base64` and `/api/flow/upload-image-file` takes multipart, so remote callers can upload through `flowkit.datxanhmientrung.ai` |
 
 ### 2026-09-21 — Radar daily Shorts
 

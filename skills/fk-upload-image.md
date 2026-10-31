@@ -33,7 +33,8 @@ curl -s -X POST http://127.0.0.1:8100/api/flow/upload-image \
 ```
 
 **Parameters:**
-- `file_path` (required): Absolute path to local image file (PNG, JPG, WebP)
+- `file_path`: Absolute path to an image file **on the agent host** (PNG, JPG, WebP)
+- `image_base64` + `mime_type`: the image bytes instead of a path — use this from another machine (e.g. against `https://flowkit.datxanhmientrung.ai`). If both are sent, `image_base64` wins. Multipart alternative: `POST /api/flow/upload-image-file` (`file`, `project_id`, `file_name`, `mime_type` form fields).
 - `project_id` (optional): Project to associate the upload with
 - `file_name` (optional): Descriptive filename, defaults to `image.png`
 

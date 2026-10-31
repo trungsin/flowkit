@@ -5,5 +5,8 @@ credentials-file: /home/lesin/.cloudflared/REPLACE_TUNNEL_ID.json
 
 ingress:
   - hostname: flowkit.datxanhmientrung.ai
+    path: ^/stockshorts(/.*)?$
+    service: http://127.0.0.1:8300
+  - hostname: flowkit.datxanhmientrung.ai
     service: http://127.0.0.1:8100
   - service: http_status:404

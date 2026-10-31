@@ -12,7 +12,7 @@ from pathlib import Path
 
 MC_NAME = "Friendly Expert"
 DEFAULT_BASE = "http://127.0.0.1:8317"
-DEFAULT_MODEL = "grok-4"
+DEFAULT_MODEL = "gpt-5.6-luna"  # cheapest model that passed validate_spec 3/3 (2026-09-27 bench)
 NARRATOR_MIN, NARRATOR_MAX = 18, 22
 
 SYSTEM = """You write VERTICAL news-short scripts for Flow Kit.

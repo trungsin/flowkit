@@ -37,11 +37,23 @@ Grok/CLIProxyAPI (script-gen agent):
 
 ```bash
 echo "${CLIPROXY_BASE_URL:-http://127.0.0.1:8317}"
-echo "${CLIPROXY_MODEL:-grok-4}"
+echo "${CLIPROXY_MODEL:-gpt-5.6-luna}"
 ```
 
 If CLIPROXY is down, stop and tell the user to start CLIProxyAPI (ClipProxyAL)
 with a Grok account. Do not fall back to writing the short-spec yourself.
+
+### Daily timer (VPS — no TUI)
+
+`flowkit-radar.timer` fires **08:00 Asia/Ho_Chi_Minh** and runs
+`scripts/radar_daily_run.py` on the VPS. You do **not** keep a Grok session
+open. You **do** leave one signed-in `flow.google.com` tab + extension on some
+Chrome (laptop is enough). Logs: `output/radar_daily/YYYY-MM-DD.log`.
+
+```bash
+systemctl --user status flowkit-radar.timer flowkit-radar.service
+journalctl --user -u flowkit-radar.service -n 80
+```
 
 ---
 
@@ -168,6 +180,6 @@ Paths live under the project output dir (`GET /api/projects/<PID>/output-dir`).
 |---|---|---|
 | `CLIPROXY_BASE_URL` | `http://127.0.0.1:8317` | CLIProxyAPI origin |
 | `CLIPROXY_API_KEY` | empty | Bearer if the proxy requires it |
-| `CLIPROXY_MODEL` | `grok-4` | Grok model id on the proxy |
+| `CLIPROXY_MODEL` | `gpt-5.6-luna` | Script-gen model on the proxy (Codex/ChatGPT login) |
 | `FLOWKIT_BASE` | `http://127.0.0.1:8100` | Flow Kit API |
 | `FLOW_PROJECT_ID` | `ef10b9d7-…` | pin Radar Flow project |
