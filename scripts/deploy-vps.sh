@@ -34,6 +34,8 @@ rsync -az --delete \
   --exclude '*.db' \
   --exclude '*.db-wal' \
   --exclude '*.db-shm' \
+  --exclude 'flow_generation_hold.json' \
+  --exclude 'agent/active_project.json' \
   --exclude '.omc/' \
   --exclude '.agentkit/' \
   --exclude 'youtube/' \
