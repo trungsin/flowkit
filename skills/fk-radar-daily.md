@@ -45,9 +45,12 @@ with a Grok account. Do not fall back to writing the short-spec yourself.
 
 ### Daily timer (VPS — no TUI)
 
-`flowkit-radar.timer` fires **08:00 Asia/Ho_Chi_Minh** and runs
-`scripts/radar_daily_run.py` on the VPS. You do **not** keep a Grok session
-open. You **do** leave one signed-in `flow.google.com` tab + extension on some
+`flowkit-radar.timer` would fire **08:00 Asia/Ho_Chi_Minh** and run
+`scripts/radar_daily_run.py` on the VPS. **It is disabled since 2026-11-01**
+(it ran alongside another Flow pipeline and the account was held). Do not
+re-enable it without the user's go-ahead, and never while another pipeline is
+submitting to Flow. When enabled you do **not** keep a Grok session open, but
+you **do** leave one signed-in `flow.google.com` tab + extension on some
 Chrome (laptop is enough). Logs: `output/radar_daily/YYYY-MM-DD.log`.
 
 ```bash

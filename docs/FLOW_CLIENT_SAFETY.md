@@ -44,8 +44,8 @@ around it.
 
 ## Recovery after a block
 
-1. Stop all tools and timers that submit to Flow
-   (`systemctl --user stop flowkit-radar.timer`, Stock Shorts on `flow`).
+1. Stop all tools and timers that submit to Flow (Stock Shorts on `flow`;
+   `flowkit-radar.timer` if it was re-enabled — disabled since 2026-11-01).
 2. Leave the hold alone. `GET /api/flow/status` shows `cooldown_remaining_s`.
 3. After the hold, make **one** image by hand in the Flow UI on the same account.
    - Refused ("We noticed some unusual activity") → the account itself is held.

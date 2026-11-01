@@ -16,7 +16,10 @@ bash scripts/deploy-vps.sh --tunnel # also create/reuse tunnel + DNS CNAME
 SSH host alias: `len-vps` in `~/.ssh/config` (port 567, key `lesin_vps_mac_ed25519`).
 Remote dir: `/home/lesin/apps/flowkit`.
 Units: `~/.config/systemd/user/flowkit.service`, `flowkit-cloudflared.service`,
-`cliproxyapi.service`, `flowkit-radar.timer` (08:00 Vietnam, `radar_daily_run.py`).
+`cliproxyapi.service`. `flowkit-radar.timer` (08:00 Vietnam, `radar_daily_run.py`)
+is **disabled since 2026-11-01**: it ran alongside phoikhi and the burst got the
+Flow account held. Re-enable only when no other pipeline uses Flow:
+`systemctl --user enable --now flowkit-radar.timer`.
 
 ## Environment Variables
 | Variable | Description | Required |
@@ -129,8 +132,8 @@ restart Flow Kit, Radar, or the Facebook sidecar.
   `NoAudioReceived`) → karaoke → completed run in **Tạo job**. Runs in the
   background, one at a time; News shows "đang render / xong / lỗi". A failed
   attempt can be retried without "Render lại". `flow`: old Flow Kit scenes + Omni
-  video (needs the Flow tab and captcha). The 08:00 `flowkit-radar.timer` still
-  uses Flow.
+  video (needs the Flow tab and captcha). `flowkit-radar.timer` (disabled since
+  2026-11-01) also uses Flow.
 - Nothing posts without the approve screen. Drafts → Queue (Facebook accounts
   only) → job detail consent → fbpublish.
 - Rsync `scripts/radar_digest.py`, `radar_scriptgen.py`, `radar_build_short.py`,
