@@ -910,6 +910,8 @@ drawtext` shows whether yours has it.
 | `GET /api/flow/status` | Extension connection details |
 | `GET /api/flow/credits` | User credits + tier |
 | `GET /api/requests/pending` | Pending request queue |
+| `GET /api/requests/batch-status?video_id=\|project_id=&type=&orientation=` | Progress by latest attempt per target, `failed_items` with `error_class`, `flow_guard` (hold, pacing), `next_action` + `poll_after_s` |
+| `POST /api/requests/retry-failed` | Requeue FAILED requests in place by error class (`{"video_id": "<VID>", "classes": [...]}`); 409 while the Flow hold is active |
 | `GET /api/projects/{id}/characters` | Entities linked to project |
 
 ### Request Types
@@ -1188,6 +1190,12 @@ From `youtube/upload.py` (HTTP errors from YouTube Data API v3):
 ## Changelog
 
 Dates are merge dates. Older releases are tagged; `git log` is the full record.
+
+### 2026-11-01 — batch-status tells clients what to do
+
+| Date | Change |
+|---|---|
+| 2026-11-01 | `GET /api/requests/batch-status` counts the latest attempt per target and adds `failed_items` (with `error_class`), `retrying`, `superseded`, `flow_guard`, `next_action` and `poll_after_s`. New `POST /api/requests/retry-failed` requeues FAILED rows in place by error class and refuses while the Flow hold is active. The worker no longer resends `PUBLIC_ERROR_UNSAFE_GENERATION`, `USER_QUOTA_REACHED` or `MODEL_ACCESS_DENIED` (was up to 5 submits each). Client loop: [`docs/FLOW_CLIENT_SAFETY.md`](docs/FLOW_CLIENT_SAFETY.md) |
 
 ### 2026-10-31 — upstream sync: Flow account safety
 

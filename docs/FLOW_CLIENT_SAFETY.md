@@ -52,7 +52,53 @@ around it.
      Wait; try by hand at most once a day. Do not run tools.
    - Works → one test submit through Flow Kit (2026-10-31: a block at 12:51 UTC
      was clear by 15:32 UTC). Then resume small.
+   - Queued requests that failed during the block come back with
+     `POST /api/requests/retry-failed`. `flow_hold` rows (never reached Google)
+     are in the default set; `account_blocked` / `captcha_hijack` only when
+     named: `{"video_id": "<VID>", "classes": ["account_blocked"]}`.
 4. Run automation on a separate Google account, not one you need for daily work.
+
+## Queue loop: batch-status drives the pace
+
+`GET /api/requests/batch-status?video_id=<VID>` (or `project_id=`, plus
+optional `type=`, `orientation=`) counts the latest attempt per target, so a
+requeued or resubmitted scene counts once. A client polls it and does what
+`next_action` says, nothing else:
+
+| `next_action` | Meaning | Client action |
+|---|---|---|
+| `wait` | Requests queued or running; the worker retries transient errors itself (`retrying` counts them) | Poll again after `poll_after_s` (≥ `flow_guard.min_interval_s`) |
+| `wait_extension` | Flow requests queued, no Flow tab connected | Alert a human; poll after `poll_after_s` |
+| `stop` | Flow hold active, or a Flow request failed `account_blocked` / `captcha_hijack` | End the run. `poll_after_s` = hold seconds left. A human follows *Recovery* |
+| `retry_failed` | Finished; some failures are safe to resend (`flow_hold`, `transient`, `captcha`, `extension`) | `POST /api/requests/retry-failed {"video_id": "<VID>"}` once, then poll |
+| `fix_failed` | Finished; failures need a change first (`content_policy`, `config`, `quota`) | Patch the prompt/config of `failed_items`, then retry-failed with `classes` |
+| `done` / `empty` | All succeeded / nothing matched | Next stage |
+
+`failed_items[]` carries `id`, `scene_id`/`character_id`, `type`, `provider`,
+`retry_count`, `error_class`, `requeue_by_default` and the first 300 characters
+of `error_message`. `retry-failed` answers 409 while the hold is active and
+returns the requeued ids. Re-POSTing the same `/api/requests/batch` also works
+(`GENERATE_*` skips completed targets) but leaves the old FAILED rows as
+`superseded`.
+
+```python
+import time   # call() and FlowBlocked: see "Minimal client" below
+
+def run_stage(vid: str) -> dict:
+    retried = False
+    while True:
+        s = call("GET", f"/api/requests/batch-status?video_id={vid}", timeout=30)
+        action = s["next_action"]
+        if action in ("wait", "wait_extension"):
+            time.sleep(s["poll_after_s"])
+        elif action == "retry_failed" and not retried:
+            call("POST", "/api/requests/retry-failed", {"video_id": vid}, timeout=30)
+            retried = True
+        elif action in ("done", "empty"):
+            return s
+        else:   # stop, fix_failed, or a second round of failures
+            raise FlowBlocked(f"{action}: {s['failed_items'][:3]} {s['flow_guard']}")
+```
 
 ## Minimal client (Python)
 

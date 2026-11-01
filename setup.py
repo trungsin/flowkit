@@ -194,9 +194,15 @@ Poll aggregate status:
 
 ```bash
 curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GENERATE_IMAGE"
-# Returns: {"total": 40, "pending": 30, "processing": 5, "completed": 5, "failed": 0, "done": false}
-# When "done": true → all requests have left the queue (completed or failed)
-# When "all_succeeded": true → every request completed successfully
+# Returns: {"total": 40, "pending": 30, "processing": 5, "completed": 4, "failed": 1, "done": false,
+#           "failed_items": [{"id": "...", "error_class": "transient", ...}],
+#           "flow_guard": {"cooldown_active": false, "min_interval_s": 20, ...},
+#           "next_action": "wait", "poll_after_s": 20}
+# next_action: wait | wait_extension → poll again after poll_after_s
+#              stop → Flow hold or account block: stop, a human checks the Flow UI
+#              retry_failed → POST /api/requests/retry-failed {"video_id": "<VID>"}
+#              fix_failed → fix prompt/config of failed_items, then retry-failed with their classes
+#              done → all succeeded
 ```
 
 For full API reference, workflow recipes, and video prompt guidelines, see `CLAUDE.md`.

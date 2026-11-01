@@ -1,9 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
+from agent.config import FLOW_GENERATION_MIN_INTERVAL_S, POLL_INTERVAL
 from agent.models.request import Request, RequestCreate
 from agent.models.enums import StatusType
 from agent.db import crud
+from agent.services.flow_client import get_flow_client
+from agent.services import request_batch_report as report
+from agent.worker import request_error_classes as errc
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
@@ -20,6 +24,28 @@ class BatchRequestCreate(BaseModel):
     requests: list[RequestCreate]
 
 
+class FailedItem(BaseModel):
+    id: str
+    type: Optional[str] = None
+    scene_id: Optional[str] = None
+    character_id: Optional[str] = None
+    orientation: Optional[str] = None
+    provider: str
+    retry_count: int
+    error_class: str
+    requeue_by_default: bool
+    error_message: str
+    updated_at: Optional[str] = None
+
+
+class FlowGuard(BaseModel):
+    extension_connected: bool
+    cooldown_active: bool
+    cooldown_remaining_s: float
+    cooldown_reason: Optional[str] = None
+    min_interval_s: float
+
+
 class BatchStatus(BaseModel):
     total: int
     pending: int
@@ -29,6 +55,51 @@ class BatchStatus(BaseModel):
     done: bool
     all_succeeded: bool
     orientation: Optional[str] = None
+    retrying: int
+    superseded: int
+    failed_items: list[FailedItem]
+    flow_guard: FlowGuard
+    next_action: str
+    poll_after_s: Optional[float] = None
+
+
+class RetryFailedRequest(BaseModel):
+    video_id: Optional[str] = None
+    project_id: Optional[str] = None
+    type: Optional[str] = None
+    orientation: Optional[str] = None
+    # Error classes to requeue; default: flow_hold, transient, captcha, extension.
+    classes: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def _scoped_and_known(self):
+        if not self.video_id and not self.project_id:
+            raise ValueError("video_id or project_id is required")
+        unknown = set(self.classes or ()) - errc.ALL_CLASSES
+        if unknown:
+            raise ValueError(f"unknown error classes: {sorted(unknown)}")
+        return self
+
+
+class RequeuedItem(BaseModel):
+    id: str
+    type: Optional[str] = None
+    scene_id: Optional[str] = None
+    character_id: Optional[str] = None
+    error_class: str
+
+
+class RetryFailedResult(BaseModel):
+    requeued: list[RequeuedItem]
+
+
+async def _filtered_rows(video_id, project_id, type, orientation) -> list[dict]:
+    rows = await crud.list_requests(video_id=video_id, project_id=project_id)
+    if type:
+        rows = [r for r in rows if r.get("type") == type]
+    if orientation:
+        rows = [r for r in rows if r.get("orientation") == orientation]
+    return rows
 
 
 @router.post("", response_model=Request)
@@ -119,28 +190,46 @@ async def list_pending():
 @router.get("/batch-status", response_model=BatchStatus)
 async def batch_status(video_id: str = None, project_id: str = None,
                        type: str = None, orientation: str = None):
-    """Aggregate status for all requests matching the filter.
-    Poll this instead of polling N individual request IDs."""
-    rows = await crud.list_requests(video_id=video_id, project_id=project_id)
-    if type:
-        rows = [r for r in rows if r.get("type") == type]
-    if orientation:
-        rows = [r for r in rows if r.get("orientation") == orientation]
-    counts = {"PENDING": 0, "PROCESSING": 0, "COMPLETED": 0, "FAILED": 0}
-    for r in rows:
-        s = r.get("status", "PENDING")
-        counts[s] = counts.get(s, 0) + 1
-    total = len(rows)
-    return BatchStatus(
-        total=total,
-        pending=counts["PENDING"],
-        processing=counts["PROCESSING"],
-        orientation=orientation,
-        completed=counts["COMPLETED"],
-        failed=counts["FAILED"],
-        done=(counts["PENDING"] == 0 and counts["PROCESSING"] == 0),
-        all_succeeded=(counts["COMPLETED"] == total and total > 0),
+    """Aggregate status for all requests matching the filter, by latest attempt
+    per target. Poll this instead of polling N individual request IDs; follow
+    ``next_action`` and wait ``poll_after_s`` between polls."""
+    rows = await _filtered_rows(video_id, project_id, type, orientation)
+    client = get_flow_client()
+    data = report.build_report(
+        rows,
+        guard=client.generation_guard_status,
+        extension_connected=client.connected,
+        min_interval_s=FLOW_GENERATION_MIN_INTERVAL_S,
+        poll_interval_s=float(POLL_INTERVAL),
     )
+    return BatchStatus(orientation=orientation, **data)
+
+
+@router.post("/retry-failed", response_model=RetryFailedResult)
+async def retry_failed(body: RetryFailedRequest):
+    """Put FAILED requests back to PENDING in place (retry_count reset), so
+    batch-status counts stay one row per target. Refused while the Flow
+    generation hold is active. Account-safety classes (account_blocked,
+    captcha_hijack) are requeued only when named in ``classes`` — do that only
+    after one image generated by hand in the Flow UI."""
+    guard = get_flow_client().generation_guard_status
+    if guard.get("cooldown_active"):
+        raise HTTPException(409, {
+            "error": "flow_generation_hold_active",
+            "cooldown_remaining_s": guard.get("cooldown_remaining_s"),
+            "cooldown_reason": guard.get("cooldown_reason"),
+        })
+    classes = frozenset(body.classes) if body.classes else errc.REQUEUE_BY_DEFAULT
+    rows = await _filtered_rows(body.video_id, body.project_id, body.type, body.orientation)
+    requeued = []
+    for row, error_class in report.select_requeue(rows, classes):
+        await crud.update_request(row["id"], status="PENDING", retry_count=0,
+                                  next_retry_at=None, error_message=None)
+        requeued.append(RequeuedItem(id=row["id"], type=row.get("type"),
+                                     scene_id=row.get("scene_id"),
+                                     character_id=row.get("character_id"),
+                                     error_class=error_class))
+    return RetryFailedResult(requeued=requeued)
 
 
 @router.get("/{rid}", response_model=Request)

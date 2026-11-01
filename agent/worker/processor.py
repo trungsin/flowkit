@@ -16,6 +16,7 @@ from agent.services.flow_client import get_flow_client
 from agent.services.event_bus import event_bus
 from agent.config import POLL_INTERVAL, MAX_RETRIES
 from agent.worker._parsing import _is_error
+from agent.worker import request_error_classes as errc
 from agent.sdk.services.result_handler import parse_result, apply_scene_result, apply_character_result
 
 logger = logging.getLogger(__name__)
@@ -494,13 +495,13 @@ async def _handle_failure(rid: str, req: dict, result: dict, retry_after: dict =
             await crud.update_request(rid, status="PENDING", request_id=None, error_message=f"recovered: {error_msg}")
             return
 
-    error_lower = str(error_msg).lower()
+    error_class = errc.classify_error(str(error_msg))
 
     # [HIJACK] extension_hijack_detected — the captcha bypass failed and the
     # token was poisoned by x2a. The bypass may succeed once the tab
     # re-initializes, but each retry is another submit Google can see, so
     # give up after HIJACK_MAX_RETRIES (#67).
-    if "[hijack]" in error_lower or "extension_hijack" in error_lower:
+    if error_class == errc.CAPTCHA_HIJACK:
         retry = req.get("retry_count", 0) + 1
         if retry < HIJACK_MAX_RETRIES:
             await crud.update_request(rid, status="PENDING", retry_count=retry, error_message=str(error_msg))
@@ -513,34 +514,26 @@ async def _handle_failure(rid: str, req: dict, result: dict, retry_after: dict =
                          rid[:8], retry, error_msg)
         return
 
-    # PUBLIC_ERROR_UNUSUAL_ACTIVITY is a Google anti-abuse/session trust block,
-    # not an ordinary CAPTCHA mint failure. Retrying it in the generic CAPTCHA
-    # loop only creates more generation submits while Google is asking us to
-    # slow down, so stop this request and require an explicit resubmit after
-    # the session/network has recovered.
-    if "unusual_activity" in error_lower or "unusual activity" in error_lower:
+    # Never resent by the worker:
+    # - PUBLIC_ERROR_UNUSUAL_ACTIVITY is a Google anti-abuse/session trust
+    #   block; resending only adds submits while Google asks us to slow down.
+    # - flow_hold: the local hold refused it, nothing reached Google; it waits
+    #   for an explicit POST /api/requests/retry-failed after recovery.
+    # - config / content_policy / quota: a resend gets the same answer.
+    if error_class in errc.TERMINAL:
         await crud.update_request(rid, status="FAILED", error_message=str(error_msg))
         await _mark_scene_failed(req)
-        logger.error("Request %s FAILED (Google unusual-activity block; manual recovery required): %s",
-                     rid[:8], error_msg)
-        return
-
-    # A capability the batch path does not have, or a missing Flow project, is
-    # a configuration answer — not something a retry can reach. Fail it once.
-    if "unsupported_on_batch_api" in error_lower or "no_flow_project" in error_lower:
-        await crud.update_request(rid, status="FAILED", error_message=str(error_msg))
-        await _mark_scene_failed(req)
-        logger.error("Request %s FAILED (not retryable): %s", rid[:8], error_msg)
+        logger.error("Request %s FAILED (%s, not retried): %s", rid[:8], error_class, error_msg)
         return
 
     # WS transient errors (extension disconnect/reconnect): retry without incrementing count
-    if "extension reconnected" in error_lower or "extension disconnected" in error_lower or "extension not connected" in error_lower:
+    if error_class == errc.EXTENSION:
         await crud.update_request(rid, status="PENDING", error_message=str(error_msg))
         logger.info("Request %s transient WS error, will retry (no retry increment): %s", rid[:8], error_msg)
         return
 
     # reCAPTCHA errors: retry up to 10 times — deferred dict in main loop handles delay
-    if "captcha" in error_lower or "recaptcha" in error_lower:
+    if error_class == errc.CAPTCHA:
         retry = req.get("retry_count", 0) + 1
         if retry < 10:
             await crud.update_request(rid, status="PENDING", retry_count=retry, error_message=str(error_msg))

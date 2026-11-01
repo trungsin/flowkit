@@ -53,8 +53,8 @@ Poll aggregate status every 15s until done:
 
 ```bash
 curl -s "http://127.0.0.1:8100/api/requests/batch-status?project_id=<PID>&type=GENERATE_CHARACTER_IMAGE"
-# Wait for: "done": true
-# If "all_succeeded": false → some failed, check individual failures
+# Follow "next_action": wait → poll after "poll_after_s"; stop → Flow hold/account block, stop and tell the user;
+# retry_failed → POST /api/requests/retry-failed {"project_id": "<PID>"}; fix_failed → see failed_items[].error_class
 ```
 
 ## Step 4: Verify
