@@ -21,6 +21,9 @@ CONFIG = "config"
 CONTENT_POLICY = "content_policy"
 # Daily credits are gone.
 QUOTA = "quota"
+# Flow generated the clip, listed it, then removed it (MEDIA_REMOVED_BY_FLOW).
+# The same start image and prompt usually repeat it; change one first.
+GENERATION_REMOVED = "generation_removed"
 # The Chrome extension dropped or reconnected mid-request.
 EXTENSION = "extension"
 # The reCAPTCHA token could not be minted.
@@ -32,10 +35,11 @@ TRANSIENT = "transient"
 ACCOUNT_SAFETY = frozenset({ACCOUNT_BLOCKED, CAPTCHA_HIJACK})
 ALL_CLASSES = frozenset({
     FLOW_HOLD, ACCOUNT_BLOCKED, CAPTCHA_HIJACK, CONFIG, CONTENT_POLICY,
-    QUOTA, EXTENSION, CAPTCHA, TRANSIENT,
+    QUOTA, GENERATION_REMOVED, EXTENSION, CAPTCHA, TRANSIENT,
 })
 # Classes the worker never resends on its own.
-TERMINAL = frozenset({FLOW_HOLD, ACCOUNT_BLOCKED, CONFIG, CONTENT_POLICY, QUOTA})
+TERMINAL = frozenset({FLOW_HOLD, ACCOUNT_BLOCKED, CONFIG, CONTENT_POLICY, QUOTA,
+                      GENERATION_REMOVED})
 # Classes ``retry-failed`` requeues when the caller names none.
 REQUEUE_BY_DEFAULT = frozenset({FLOW_HOLD, TRANSIENT, CAPTCHA, EXTENSION})
 
@@ -55,6 +59,8 @@ def classify_error(message: str | None) -> str:
         return CONTENT_POLICY
     if "user_quota_reached" in text:
         return QUOTA
+    if "media_removed_by_flow" in text:
+        return GENERATION_REMOVED
     if ("extension reconnected" in text or "extension disconnected" in text
             or "extension not connected" in text):
         return EXTENSION

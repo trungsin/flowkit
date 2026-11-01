@@ -911,7 +911,9 @@ drawtext` shows whether yours has it.
 | `GET /api/flow/credits` | User credits + tier |
 | `GET /api/requests/pending` | Pending request queue |
 | `GET /api/requests/batch-status?video_id=\|project_id=&type=&orientation=` | Progress by latest attempt per target, `failed_items` with `error_class`, `flow_guard` (hold, pacing), `next_action` + `poll_after_s` |
-| `POST /api/requests/retry-failed` | Requeue FAILED requests in place by error class (`{"video_id": "<VID>", "classes": [...]}`); 409 while the Flow hold is active |
+| `POST /api/requests/retry-failed` | New attempt for each FAILED target whose `error_class` is named (default: `flow_hold`, `transient`, `captcha`, `extension`); the FAILED row stays as history. 409 while the Flow hold is active |
+| `GET /api/requests/history?video_id=\|project_id=` | Every attempt per target with operation id, media id and `error_class` — the trace behind batch-status |
+| `POST /api/videos/{id}/concat` / `finalize` | 409 `scenes_missing_video` (with scene ids and `display_order`) unless every scene has a clip, or `allow_missing: true` |
 | `GET /api/projects/{id}/characters` | Entities linked to project |
 
 ### Request Types
@@ -1195,7 +1197,7 @@ Dates are merge dates. Older releases are tagged; `git log` is the full record.
 
 | Date | Change |
 |---|---|
-| 2026-11-01 | `GET /api/requests/batch-status` counts the latest attempt per target and adds `failed_items` (with `error_class`), `retrying`, `superseded`, `flow_guard`, `next_action` and `poll_after_s`. New `POST /api/requests/retry-failed` requeues FAILED rows in place by error class and refuses while the Flow hold is active. The worker no longer resends `PUBLIC_ERROR_UNSAFE_GENERATION`, `USER_QUOTA_REACHED` or `MODEL_ACCESS_DENIED` (was up to 5 submits each). Client loop: [`docs/FLOW_CLIENT_SAFETY.md`](docs/FLOW_CLIENT_SAFETY.md) |
+| 2026-11-01 | `GET /api/requests/batch-status` counts the latest attempt per target and adds `failed_items` (with `error_class`), `retrying`, `superseded`, `flow_guard`, `next_action` and `poll_after_s`. `POST /api/requests/retry-failed` submits a new attempt per FAILED target by error class (the failed row stays as history) and refuses while the Flow hold is active; `GET /api/requests/history` lists every attempt. A video whose listed media turns NOT_FOUND fails after `FLOW_REMOVED_MEDIA_GRACE_S` (90s) as `MEDIA_REMOVED_BY_FLOW` (`generation_removed`) instead of being re-polled for 5×420s. `concat`/`finalize` refuse with 409 while scenes lack clips unless `allow_missing`. The worker no longer resends `PUBLIC_ERROR_UNSAFE_GENERATION`, `USER_QUOTA_REACHED` or `MODEL_ACCESS_DENIED`. Runbook: [`docs/FLOW_PIPELINE_RUNS.md`](docs/FLOW_PIPELINE_RUNS.md) |
 
 ### 2026-10-31 — upstream sync: Flow account safety
 

@@ -126,6 +126,20 @@ async def test_concat_missing_scenes_400(videos_client, test_db):
     assert r.status_code == 400
 
 
+async def test_concat_refuses_partial_unless_allowed(videos_client, test_db, tmp_path):
+    _, video = await _mk_video_with_clips(tmp_path, n_scenes=2)
+    hole = await crud.create_scene(video_id=video["id"], display_order=2, prompt="no clip")
+
+    r = videos_client.post(f"/api/videos/{video['id']}/concat", json={})
+    assert r.status_code == 409
+    assert r.json()["detail"]["missing"] == [{"scene_id": hole["id"], "display_order": 2}]
+
+    r = videos_client.post(f"/api/videos/{video['id']}/concat", json={"allow_missing": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["scenes_used"] == 2
+    assert r.json()["scenes_missing"] == [hole["id"]]
+
+
 async def test_finalize_marks_completed(videos_client, test_db, tmp_path):
     _, video = await _mk_video_with_clips(tmp_path, n_scenes=2)
 

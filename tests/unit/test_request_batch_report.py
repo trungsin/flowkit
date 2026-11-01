@@ -61,6 +61,7 @@ async def _req(proj, video, scene, status="PENDING", error=None, retry_count=0,
     ("[HIJACK] extension_hijack_detected", errc.CAPTCHA_HIJACK),
     ("Request blocked [PUBLIC_ERROR_UNSAFE_GENERATION]", errc.CONTENT_POLICY),
     ("PUBLIC_ERROR_USER_QUOTA_REACHED", errc.QUOTA),
+    ("MEDIA_REMOVED_BY_FLOW: media x for operation y was listed", errc.GENERATION_REMOVED),
     ("403 PUBLIC_ERROR_MODEL_ACCESS_DENIED", errc.CONFIG),
     ("UNSUPPORTED_ON_BATCH_API: upscale", errc.CONFIG),
     ("Extension disconnected", errc.EXTENSION),
@@ -174,30 +175,65 @@ async def test_retry_failed_refused_during_hold(make_client):
 
 async def test_retry_failed_default_skips_account_safety_and_policy(make_client):
     proj, video, scenes = await _video_with_scenes(4)
-    held = await _req(proj, video, scenes[0], status="FAILED", error=HOLD_MSG, retry_count=0)
+    held = await _req(proj, video, scenes[0], status="FAILED", error=HOLD_MSG)
     flaky = await _req(proj, video, scenes[1], status="FAILED",
                        error="Internal error encountered", retry_count=4)
-    blocked = await _req(proj, video, scenes[2], status="FAILED", error=GOOGLE_BLOCK)
-    unsafe = await _req(proj, video, scenes[3], status="FAILED",
-                        error="[PUBLIC_ERROR_UNSAFE_GENERATION]")
-    res = make_client().post("/api/requests/retry-failed", json={"video_id": video["id"]})
+    await _req(proj, video, scenes[2], status="FAILED", error=GOOGLE_BLOCK)
+    await _req(proj, video, scenes[3], status="FAILED", error="[PUBLIC_ERROR_UNSAFE_GENERATION]")
+    client = make_client()
+    res = client.post("/api/requests/retry-failed", json={"video_id": video["id"]})
     assert res.status_code == 200
-    assert {r["id"] for r in res.json()["requeued"]} == {held["id"], flaky["id"]}
-    again = await crud.get_request(flaky["id"])
-    assert (again["status"], again["retry_count"], again["error_message"]) == ("PENDING", 0, None)
-    assert (await crud.get_request(blocked["id"]))["status"] == "FAILED"
-    assert (await crud.get_request(unsafe["id"]))["status"] == "FAILED"
+    requeued = {r["replaces"]: r["id"] for r in res.json()["requeued"]}
+    assert set(requeued) == {held["id"], flaky["id"]}
+    fresh = await crud.get_request(requeued[flaky["id"]])
+    assert (fresh["status"], fresh["retry_count"], fresh["request_id"]) == ("PENDING", 0, None)
+    assert (await crud.get_request(flaky["id"]))["status"] == "FAILED"   # kept as history
+    body = client.get(f"/api/requests/batch-status?video_id={video['id']}").json()
+    assert (body["total"], body["pending"], body["failed"], body["superseded"]) == (4, 2, 2, 2)
 
 
 async def test_retry_failed_named_class_and_superseded_rows(make_client):
     proj, video, (s0, s1) = await _video_with_scenes(2)
     blocked = await _req(proj, video, s0, status="FAILED", error=GOOGLE_BLOCK)
-    old = await _req(proj, video, s1, status="FAILED", error=GOOGLE_BLOCK)
+    await _req(proj, video, s1, status="FAILED", error=GOOGLE_BLOCK)
     await _req(proj, video, s1, status="COMPLETED")      # already redone
     res = make_client().post("/api/requests/retry-failed",
                              json={"video_id": video["id"], "classes": ["account_blocked"]})
-    assert [r["id"] for r in res.json()["requeued"]] == [blocked["id"]]
-    assert (await crud.get_request(old["id"]))["status"] == "FAILED"
+    assert [r["replaces"] for r in res.json()["requeued"]] == [blocked["id"]]
+
+
+REMOVED = ("MEDIA_REMOVED_BY_FLOW: media b908 for operation d250 was listed, then "
+           "answered NOT_FOUND for 90s. Same input usually repeats it: change the start image or prompt.")
+
+
+async def test_removed_generation_needs_a_fix_then_named_retry(make_client):
+    proj, video, (s0,) = await _video_with_scenes(1)
+    failed = await _req(proj, video, s0, status="FAILED", error=REMOVED)
+    await crud.update_request(failed["id"], request_id="d2501684-dead-op")
+    client = make_client()
+    body = client.get(f"/api/requests/batch-status?video_id={video['id']}").json()
+    assert body["next_action"] == "fix_failed"
+    assert body["failed_items"][0]["error_class"] == errc.GENERATION_REMOVED
+    assert client.post("/api/requests/retry-failed",
+                       json={"video_id": video["id"]}).json()["requeued"] == []
+    res = client.post("/api/requests/retry-failed",
+                      json={"video_id": video["id"], "classes": ["generation_removed"]})
+    fresh = await crud.get_request(res.json()["requeued"][0]["id"])
+    assert fresh["request_id"] is None        # resubmits instead of re-polling the dead op
+
+
+async def test_history_lists_every_attempt_per_target(make_client):
+    proj, video, (s0, s1) = await _video_with_scenes(2)
+    first = await _req(proj, video, s1, status="FAILED", error=REMOVED)
+    second = await _req(proj, video, s1, status="COMPLETED")
+    await _req(proj, video, s0, status="COMPLETED")
+    res = make_client().get(f"/api/requests/history?video_id={video['id']}")
+    targets = {t["scene_id"]: t for t in res.json()}
+    s1_hist = targets[s1["id"]]
+    assert s1_hist["display_order"] == 1 and s1_hist["latest_status"] == "COMPLETED"
+    assert [(a["id"], a["error_class"]) for a in s1_hist["attempts"]] == [
+        (first["id"], errc.GENERATION_REMOVED), (second["id"], None)]
+    assert make_client().get("/api/requests/history").status_code == 422
 
 
 @pytest.mark.parametrize("payload", [

@@ -72,6 +72,13 @@ FLOW_UNUSUAL_ACTIVITY_COOLDOWN_S = max(
     0.0, float(os.environ.get("FLOW_UNUSUAL_ACTIVITY_COOLDOWN_S", "3600"))
 )
 FLOW_GENERATION_HOLD_PATH = BASE_DIR / "flow_generation_hold.json"
+# A video operation whose listed media answers NOT_FOUND was generated and then
+# removed by Flow (seen with post-generation filtering). If the listing has not
+# produced a fetchable clip this long after the first NOT_FOUND, the operation
+# fails as MEDIA_REMOVED_BY_FLOW instead of being polled to the timeout.
+FLOW_REMOVED_MEDIA_GRACE_S = max(
+    0.0, float(os.environ.get("FLOW_REMOVED_MEDIA_GRACE_S", "90"))
+)
 FLOW_SESSION_PROJECT_IDLE_S = max(
     300.0, float(os.environ.get("FLOW_SESSION_PROJECT_IDLE_S", "7200"))
 )

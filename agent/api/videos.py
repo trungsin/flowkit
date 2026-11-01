@@ -98,6 +98,7 @@ class ConcatRequest(BaseModel):
     orientation: Optional[str] = Field(None, description="VERTICAL|HORIZONTAL; defaults to the video's orientation")
     target_duration_s: Optional[float] = Field(None, gt=0, description="Trim the merged video to this length")
     output_filename: Optional[str] = None
+    allow_missing: bool = Field(False, description="Merge even if some scenes have no usable clip (409 otherwise)")
 
 
 class ConcatResponse(BaseModel):
@@ -117,6 +118,7 @@ class FinalizeRequest(BaseModel):
     music_path: Optional[str] = None
     narration_path: Optional[str] = None
     music_volume: float = 0.3
+    allow_missing: bool = Field(False, description="Merge even if some scenes have no usable clip (409 otherwise)")
 
 
 class FinalizeResponse(BaseModel):
@@ -151,7 +153,7 @@ def _resolve_media_local(url: str, tmpdir: Path) -> Optional[str]:
 async def _assemble_video(vid: str, orientation: Optional[str],
                           target_duration_s: Optional[float],
                           output_filename: Optional[str],
-                          tag: str) -> dict:
+                          tag: str, allow_missing: bool = False) -> dict:
     """Concat scene clips for one orientation; returns assembly details."""
     sdk_video = await _repo.get_video(vid)
     if not sdk_video:
@@ -192,6 +194,16 @@ async def _assemble_video(vid: str, orientation: Optional[str],
             raise HTTPException(
                 400, f"No usable {orientation.lower()} clips "
                      f"({len(missing)} scenes missing video)")
+        if missing and not allow_missing:
+            order = {s["id"]: s.get("display_order") for s in scenes}
+            raise HTTPException(409, {
+                "error": "scenes_missing_video",
+                "orientation": orientation,
+                "missing": [{"scene_id": sid, "display_order": order.get(sid)}
+                            for sid in missing],
+                "hint": "repair these scenes (GET /api/requests/history, "
+                        "POST /api/requests/retry-failed) or pass allow_missing=true",
+            })
 
         fname = output_filename or f"{slugify(sdk_video.title) or 'video'}_{tag}_{orientation.lower()}.mp4"
         final_path = out_dir / fname
@@ -242,14 +254,15 @@ async def concat_video(vid: str, body: ConcatRequest):
     """
     return await _assemble_video(
         vid, body.orientation, body.target_duration_s,
-        body.output_filename, tag="concat")
+        body.output_filename, tag="concat", allow_missing=body.allow_missing)
 
 
 @router.post("/{vid}/finalize", response_model=FinalizeResponse)
 async def finalize_video(vid: str, body: FinalizeRequest):
     """Full finish: concat (+ optional trim) → music/narration mix → COMPLETED."""
     asm = await _assemble_video(
-        vid, body.orientation, body.target_duration_s, None, tag="final")
+        vid, body.orientation, body.target_duration_s, None, tag="final",
+        allow_missing=body.allow_missing)
     steps = [f"concat ({asm['scenes_used']} scenes)"]
     if asm["trimmed"]:
         steps.append(f"trimmed to {asm['target_duration_s']}s")

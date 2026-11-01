@@ -130,3 +130,34 @@ def select_requeue(rows: list[dict], classes: frozenset[str]) -> list[tuple[dict
         if error_class in classes:
             picked.append((row, error_class))
     return picked
+
+
+def history(rows: list[dict]) -> list[dict]:
+    """All attempts grouped per target, oldest first; targets in first-seen order."""
+    groups: dict[tuple, list[dict]] = {}
+    for row in sorted(rows, key=_recency):
+        groups.setdefault(_target_key(row), []).append(row)
+    out = []
+    for attempts in groups.values():
+        last = attempts[-1]
+        out.append({
+            "type": last.get("type"),
+            "scene_id": last.get("scene_id"),
+            "character_id": last.get("character_id"),
+            "orientation": last.get("orientation"),
+            "latest_status": last.get("status") or "PENDING",
+            "attempts": [{
+                "id": a["id"],
+                "status": a.get("status") or "PENDING",
+                "operation_id": a.get("request_id"),
+                "media_id": a.get("media_id"),
+                "retry_count": a.get("retry_count") or 0,
+                "error_class": (errc.classify_error(a.get("error_message"))
+                                if a.get("status") == "FAILED" else None),
+                "error_message": a.get("error_message"),
+                "provider": a.get("provider"),
+                "created_at": a.get("created_at"),
+                "updated_at": a.get("updated_at"),
+            } for a in attempts],
+        })
+    return out

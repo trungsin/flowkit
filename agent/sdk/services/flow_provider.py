@@ -235,7 +235,7 @@ async def _poll_operations(
                 # Log full operation for debugging failure reason
                 import json as _json
                 logger.error("Operation FAILED: name=%s full=%s", op_name, _json.dumps(op)[:1000])
-                error_msg = f"Operation failed: {op_name}"
+                error_msg = op.get("error") or f"Operation failed: {op_name}"
                 has_error = True
                 break
             else:

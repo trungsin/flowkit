@@ -73,7 +73,7 @@ Poll until Wave 1 completes:
 ```bash
 curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GENERATE_IMAGE"
 # Follow "next_action": wait → poll after "poll_after_s"; stop → Flow hold/account block, stop and tell the user;
-# retry_failed → POST /api/requests/retry-failed {"video_id": "<VID>"}; fix_failed → see failed_items[].error_class
+# retry_failed → POST /api/requests/retry-failed {"video_id": "<VID>"}; fix_failed → repair per docs/FLOW_PIPELINE_RUNS.md
 ```
 
 ### Wave 2+ — CONTINUATION scenes (EDIT_IMAGE)

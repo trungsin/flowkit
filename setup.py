@@ -201,8 +201,8 @@ curl -s "http://127.0.0.1:8100/api/requests/batch-status?video_id=<VID>&type=GEN
 # next_action: wait | wait_extension → poll again after poll_after_s
 #              stop → Flow hold or account block: stop, a human checks the Flow UI
 #              retry_failed → POST /api/requests/retry-failed {"video_id": "<VID>"}
-#              fix_failed → fix prompt/config of failed_items, then retry-failed with their classes
-#              done → all succeeded
+#              fix_failed → repair per error_class (docs/FLOW_PIPELINE_RUNS.md), then retry-failed with "classes"
+#              done → all succeeded; trace: GET /api/requests/history?video_id=<VID>
 ```
 
 For full API reference, workflow recipes, and video prompt guidelines, see `CLAUDE.md`.

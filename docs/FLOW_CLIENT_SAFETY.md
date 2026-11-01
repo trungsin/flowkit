@@ -71,15 +71,16 @@ requeued or resubmitted scene counts once. A client polls it and does what
 | `wait_extension` | Flow requests queued, no Flow tab connected | Alert a human; poll after `poll_after_s` |
 | `stop` | Flow hold active, or a Flow request failed `account_blocked` / `captcha_hijack` | End the run. `poll_after_s` = hold seconds left. A human follows *Recovery* |
 | `retry_failed` | Finished; some failures are safe to resend (`flow_hold`, `transient`, `captcha`, `extension`) | `POST /api/requests/retry-failed {"video_id": "<VID>"}` once, then poll |
-| `fix_failed` | Finished; failures need a change first (`content_policy`, `config`, `quota`) | Patch the prompt/config of `failed_items`, then retry-failed with `classes` |
+| `fix_failed` | Finished; failures need a change first (`generation_removed`, `content_policy`, `config`, `quota`) | Repair per [`FLOW_PIPELINE_RUNS.md`](FLOW_PIPELINE_RUNS.md), then retry-failed with `classes` |
 | `done` / `empty` | All succeeded / nothing matched | Next stage |
 
 `failed_items[]` carries `id`, `scene_id`/`character_id`, `type`, `provider`,
 `retry_count`, `error_class`, `requeue_by_default` and the first 300 characters
-of `error_message`. `retry-failed` answers 409 while the hold is active and
-returns the requeued ids. Re-POSTing the same `/api/requests/batch` also works
-(`GENERATE_*` skips completed targets) but leaves the old FAILED rows as
-`superseded`.
+of `error_message`. `retry-failed` answers 409 while the hold is active,
+submits a new attempt per target and returns `{id, replaces}` pairs; the FAILED
+row stays as history (`superseded`, and listed by `GET /api/requests/history`).
+Full run → repair → concat procedure and trace format:
+[`FLOW_PIPELINE_RUNS.md`](FLOW_PIPELINE_RUNS.md).
 
 ```python
 import time   # call() and FlowBlocked: see "Minimal client" below

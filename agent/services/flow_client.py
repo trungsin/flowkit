@@ -30,6 +30,7 @@ from agent.config import (
     DEFAULT_PAYGATE_TIER,
     FLOW_GENERATION_MIN_INTERVAL_S, FLOW_GENERATION_MAX_CONCURRENT,
     FLOW_UNUSUAL_ACTIVITY_COOLDOWN_S, FLOW_GENERATION_HOLD_PATH,
+    FLOW_REMOVED_MEDIA_GRACE_S,
 )
 from agent import config as _config
 from agent.services import flow_batch as fb
@@ -66,6 +67,8 @@ class FlowClient:
         self._operation_projects: dict[str, str] = {}
         self._operation_media: dict[str, str] = {}
         self._operation_polls: dict[str, int] = {}
+        # op id -> (removed media id, monotonic time of the first NOT_FOUND)
+        self._operation_removed: dict[str, tuple[str, float]] = {}
         self._generation_slots = asyncio.Semaphore(FLOW_GENERATION_MAX_CONCURRENT)
         self._generation_rate_gate = asyncio.Lock()
         self._generation_last_submit_at = 0.0
@@ -998,15 +1001,30 @@ class FlowClient:
         if not media_id:
             media_id, complaint = await self._find_operation_media(operation_id)
             if not media_id:
+                removed = self._removed_verdict(operation_id)
+                if removed:
+                    return removed
                 return _as_pending_operation(operation_id, error=complaint)
             logger.info("Matched media_id=%s for op=%s", media_id, operation_id)
             self._operation_media[operation_id] = media_id
 
         try:
             urls = await self._batch_media_urls(media_id)
-        except Exception:
+        except Exception as exc:
             self._operation_media.pop(operation_id, None)
-            raise
+            if not _is_media_not_found(exc):
+                raise
+            # Listed, then gone: Flow generated the clip and took it back.
+            first = self._operation_removed.get(operation_id)
+            if first is None:
+                if len(self._operation_removed) > 512:
+                    self._operation_removed.clear()
+                self._operation_removed[operation_id] = (media_id, time.monotonic())
+                logger.warning("Operation %s: listed media %s answers NOT_FOUND "
+                               "(removed by Flow?)", operation_id[:20], media_id)
+            return self._removed_verdict(operation_id) or _as_pending_operation(
+                operation_id, error=f"media {media_id} answers NOT_FOUND")
+        self._operation_removed.pop(operation_id, None)
         if not urls.video:
             # The id landed but the clip is still being written; downloading
             # now would save the poster still instead of the video.
@@ -1022,6 +1040,23 @@ class FlowClient:
                 "metadata": {"video": {"mediaId": media_id, "fifeUrl": urls.video}},
             },
             "status": "MEDIA_GENERATION_STATUS_SUCCESSFUL",
+        }
+
+    def _removed_verdict(self, operation_id: str) -> dict | None:
+        """FAILED once a removed media has stayed unfetchable past the grace."""
+        removed = self._operation_removed.get(operation_id)
+        if not removed:
+            return None
+        media_id, since = removed
+        if time.monotonic() - since < FLOW_REMOVED_MEDIA_GRACE_S:
+            return None
+        return {
+            "operation": {"name": operation_id},
+            "status": "MEDIA_GENERATION_STATUS_FAILED",
+            "error": (f"MEDIA_REMOVED_BY_FLOW: media {media_id} for operation "
+                      f"{operation_id} was listed, then answered NOT_FOUND for "
+                      f"{FLOW_REMOVED_MEDIA_GRACE_S:.0f}s. Same input usually "
+                      f"repeats it: change the start image or prompt."),
         }
 
     async def _find_operation_media(self, operation_id: str) -> tuple[str | None, str | None]:
@@ -1191,6 +1226,12 @@ def _as_pending_operation(operation_id: str, error: str | None = None,
         entry["complaint"] = error
     return entry
 
+
+def _is_media_not_found(exc: Exception) -> bool:
+    """The media record rpc answered status 5 (NOT_FOUND)."""
+    detail = getattr(exc, "detail", None)
+    return (isinstance(exc, fb.RpcError) and exc.rpcid == fb.RPC_MEDIA
+            and isinstance(detail, list) and detail[:1] == [5])
 
 
 def _is_ws_error(result: dict) -> bool:
